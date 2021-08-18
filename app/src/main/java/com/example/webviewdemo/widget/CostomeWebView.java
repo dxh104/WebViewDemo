@@ -184,8 +184,8 @@ public class CostomeWebView extends ConstraintLayout {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 Log.i(TAG, "shouldOverrideUrlLoading1: url=" + url);
-                view.loadUrl(url);
-                return true;
+//                view.loadUrl(url);
+                return super.shouldOverrideUrlLoading(view, url);
             }
 
             //在网页上的所有加载都经过这个方法
