@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>标题，我是web</title>
+    <script type="text/javascript">
+        function jsToAndroid(message) {
+            alert(message);
+            android.send(message);//发送消息给Android用这个方法
+        }
+        function androidToJs(message){//在这里接受Android调js时传来的消息
+            var callBackMsg="Android调用JS成功:"+message;//回调给Android的消息
+            alert(message);
+            return callBackMsg;//处理之后返回给Android的消息
+        }
+    </script>
+</head>
+<body style="text-align: center;background: aquamarine">
+<button id="btn"
+        onclick="jsToAndroid('你好Android,我是js')"
+        style="background: aquamarine;color: brown;font-size: 36px;width: auto;height: auto;padding: 10px 30px 10px 30px">
+    Js调用Android
+</button>
+
+</body>
+</html>
