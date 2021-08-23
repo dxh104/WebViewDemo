@@ -1,5 +1,6 @@
 package com.example.webviewdemo.widget;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
@@ -14,12 +15,13 @@ import android.os.Build;
 import android.support.annotation.RequiresApi;
 import android.support.constraint.ConstraintLayout;
 import android.support.v7.app.AppCompatActivity;
-import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.webkit.DownloadListener;
 import android.webkit.HttpAuthHandler;
 import android.webkit.JavascriptInterface;
 import android.webkit.JsPromptResult;
@@ -37,14 +39,14 @@ import android.widget.RelativeLayout;
 
 import com.example.webviewdemo.R;
 
+
 /**
  * Create by DXH on 2021/08/17
  */
 public class CostomeWebView extends ConstraintLayout {
-    public String fileDir = "file:///android_asset/index.html";//测试html文件
-
     private String TAG = getClass().getName() + "--------->";
 
+    private ViewGroup topLayout;
     private ProgressBar mProgressBar;
     private WebView mWebView;
     private RelativeLayout contentParentView;//播放视频容器
@@ -57,10 +59,11 @@ public class CostomeWebView extends ConstraintLayout {
     private int mWebViewHeight;//WebView高度
 
     private AppCompatActivity mActivity;
-    private String mUrl;
-    private boolean isActivityFullScreen = false;//Activity是不是全屏
+    private boolean isActivityFullScreen = false;//Activity是不是全屏  如果网页没有视频全屏播放就不用管他
 
-    private JsToAndroid.OnReceiveListener onReceiveListener;
+    private JsToAndroid.OnReceiveListener onReceiveListener;//js中调用<android.send();>  Android将接受到消息
+    private OnPageChangeListener onPageChangeListener;//页面变化会回调最新url
+    private DownloadListener downloadListener;//网页下载监听事件 网页下载功能需要自己实现
 
     public CostomeWebView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -73,13 +76,6 @@ public class CostomeWebView extends ConstraintLayout {
         array.recycle();
     }
 
-    @Override
-    protected void onAttachedToWindow() {
-        super.onAttachedToWindow();
-        if (!TextUtils.isEmpty(mUrl))
-            loadUrl(mUrl);
-    }
-
     private ConstraintLayout.LayoutParams mProgressBarLayoutParams;
     private ConstraintLayout.LayoutParams mWebViewLayoutParams;
     private ConstraintLayout.LayoutParams contentParentViewLayoutParams;
@@ -87,24 +83,39 @@ public class CostomeWebView extends ConstraintLayout {
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+        setUI();
+    }
+
+    private void setUI() {
+        if (topLayout != null) {
+            mWebViewLayoutParams.startToStart = -1;
+            mWebViewLayoutParams.endToEnd = -1;
+            mWebViewLayoutParams.topToBottom = topLayout.getId();
+            mWebViewLayoutParams.width = mWebViewWidth == -1 ? getMeasuredWidth() : mWebViewWidth;
+            mWebViewLayoutParams.height = mWebViewHeight == -1 ? getMeasuredHeight() - topLayout.getMeasuredHeight() : mWebViewHeight;
+            mWebView.setLayoutParams(mWebViewLayoutParams);
+        } else {
+            mWebViewLayoutParams.startToStart = 0;
+            mWebViewLayoutParams.endToEnd = 0;
+            mWebViewLayoutParams.topToTop = 0;
+            mWebViewLayoutParams.width = mWebViewWidth == -1 ? getMeasuredWidth() : mWebViewWidth;
+            mWebViewLayoutParams.height = mWebViewHeight == -1 ? getMeasuredHeight() : mWebViewHeight;
+            mWebView.setLayoutParams(mWebViewLayoutParams);
+        }
         mProgressBarLayoutParams.startToStart = 0;
         mProgressBarLayoutParams.endToEnd = 0;
-        mProgressBarLayoutParams.topToTop = 0;
-        mProgressBarLayoutParams.width = mProgressWidth == -1 ? getMeasuredWidth() : mProgressWidth;
-        mProgressBarLayoutParams.height = mProgressHeight == -1 ? getMeasuredHeight() : mProgressHeight;
-
-        mWebViewLayoutParams.startToStart = 0;
-        mWebViewLayoutParams.endToEnd = 0;
-        mWebViewLayoutParams.topToTop = 0;
-        mWebViewLayoutParams.width = mWebViewWidth == -1 ? getMeasuredWidth() : mWebViewWidth;
-        mWebViewLayoutParams.height = mWebViewHeight == -1 ? getMeasuredHeight() : mWebViewHeight;
+        mProgressBarLayoutParams.topToTop = mWebView.getId();
+        mProgressBarLayoutParams.width = mProgressWidth == -1 ? mWebView.getMeasuredWidth() : mProgressWidth;
+        mProgressBarLayoutParams.height = mProgressHeight == -1 ? mWebView.getMeasuredHeight() : mProgressHeight;
+        mProgressBar.setLayoutParams(mProgressBarLayoutParams);
 
         contentParentViewLayoutParams.startToStart = 0;
         contentParentViewLayoutParams.endToEnd = 0;
         contentParentViewLayoutParams.topToTop = 0;
         contentParentViewLayoutParams.bottomToBottom = 0;
-        contentParentViewLayoutParams.width = getMeasuredWidth();
-        contentParentViewLayoutParams.height = getMeasuredHeight();
+        contentParentViewLayoutParams.width = 0;
+        contentParentViewLayoutParams.height = 0;
+        contentParentView.setLayoutParams(contentParentViewLayoutParams);
     }
 
     /**
@@ -114,13 +125,18 @@ public class CostomeWebView extends ConstraintLayout {
      * @param url                  初始化页面载入
      * @param isActivityFullScreen 如果WebViewActivity是全屏(没有标题栏和状态栏) 就传true 否则传false
      */
+    @SuppressLint("NewApi")
     public void init(AppCompatActivity activity, String url, boolean isActivityFullScreen) {
         mActivity = activity;
-        mUrl = url;
         this.isActivityFullScreen = isActivityFullScreen;
         mWebView = new WebView(getContext());
+        mWebView.setId(View.generateViewId());
         mProgressBar = new ProgressBar(getContext(), null, android.R.attr.progressBarStyleHorizontal);
+        mProgressBar.setId(View.generateViewId());
         contentParentView = new RelativeLayout(getContext());
+        contentParentView.setId(View.generateViewId());
+        if (getChildCount() > 0)
+            topLayout = (ViewGroup) getChildAt(0);
         this.addView(mWebView);
         this.addView(mProgressBar);
         this.addView(contentParentView);
@@ -132,9 +148,9 @@ public class CostomeWebView extends ConstraintLayout {
         mWebViewLayoutParams = (LayoutParams) mWebView.getLayoutParams();
         mProgressBarLayoutParams = (LayoutParams) mProgressBar.getLayoutParams();
         contentParentViewLayoutParams = (LayoutParams) contentParentView.getLayoutParams();
-
         contentParentView.setBackgroundColor(Color.parseColor("#000000"));//黑色背景
         contentParentView.setVisibility(INVISIBLE);//默认隐藏
+        loadUrl(url);
     }
 
     //初始化WebView配置
@@ -184,7 +200,6 @@ public class CostomeWebView extends ConstraintLayout {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 Log.i(TAG, "shouldOverrideUrlLoading1: url=" + url);
-//                view.loadUrl(url);
                 return super.shouldOverrideUrlLoading(view, url);
             }
 
@@ -200,7 +215,7 @@ public class CostomeWebView extends ConstraintLayout {
                 }
                 Log.i(TAG, "shouldOverrideUrlLoading2: url=" + url);
                 if (url.startsWith("http://") || url.startsWith("https://")) { //加载的url是http/https协议地址
-                    view.loadUrl(url);
+                    loadUrl(url);
                     return false; //返回false表示此url默认由系统处理,url未加载完成，会继续往下走
                 } else { //加载的url是自定义协议地址
                     try {
@@ -230,7 +245,7 @@ public class CostomeWebView extends ConstraintLayout {
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 super.onReceivedError(view, request, error);
                 mProgressBar.setVisibility(View.GONE);//加载错误页面
-                Log.i(TAG, error.toString() + "加载页面的服务器出现错误时onReceivedError: " + request.toString());
+                Log.i(TAG, "加载页面的服务器出现错误时onReceivedError: " + error.toString() + " request:" + request.toString());
             }
 
             @Override
@@ -243,13 +258,13 @@ public class CostomeWebView extends ConstraintLayout {
             @Override
             public void onReceivedHttpAuthRequest(WebView view, HttpAuthHandler handler, String host, String realm) {
                 super.onReceivedHttpAuthRequest(view, handler, host, realm);
-                Log.i(TAG, realm + "获取返回信息授权请求onReceivedHttpAuthRequest: " + handler.toString());
+                Log.i(TAG, "获取返回信息授权请求onReceivedHttpAuthRequest: realm=" + realm + " handler=" + handler.toString());
             }
 
             @Override
             public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
                 handler.proceed();    //表示等待证书响应---接受所有网站的证书，忽略SSL错误，执行访问网页
-                Log.i(TAG, error.toString() + "处理https请求onReceivedSslError: " + handler.toString());
+                Log.i(TAG, "处理https请求onReceivedSslError: error=" + error.toString() + " handler=" + handler.toString());
             }
         });
         mWebView.setWebChromeClient(new WebChromeClient() {
@@ -263,7 +278,6 @@ public class CostomeWebView extends ConstraintLayout {
                     contentParentView.addView(view);
                     contentParentView.setVisibility(VISIBLE);
                     requestHorizontalScreen();
-                    contentParentView.bringToFront();
                 }
             }
 
@@ -327,13 +341,24 @@ public class CostomeWebView extends ConstraintLayout {
                 }
             }
         }), "android");
+        mWebView.setDownloadListener(new DownloadListener() {
+            @Override
+            public void onDownloadStart(final String url, String userAgent, String contentDisposition, String mimetype, final long contentLength) {
+                Log.i(TAG, "onDownloadStart: url=" + url + ",userAgent=" + userAgent + ",contentDisposition=" + contentDisposition + ",mimetype=" + mimetype + ",contentLength=" + contentLength);
+                if (downloadListener != null) {
+                    downloadListener.onDownloadStart(url, userAgent, contentDisposition, mimetype, contentLength);
+                }
+            }
+        });
     }
-
 
     //加载网页
     public void loadUrl(String url) {
         if (mWebView != null) {
             mWebView.loadUrl(url);
+            if (onPageChangeListener != null) {
+                onPageChangeListener.onGoPage(url);//返回加载的页面地址
+            }
         } else {
             Log.i(TAG, "loadUrl: mWebView未加载完成");
         }
@@ -343,6 +368,9 @@ public class CostomeWebView extends ConstraintLayout {
     public boolean goBack() {
         if (mWebView != null && mWebView.canGoBack()) {
             mWebView.goBack();
+            if (onPageChangeListener != null) {
+                onPageChangeListener.onBackPage(mWebView.copyBackForwardList().getCurrentItem().getUrl());
+            }
             return true;
         }
         return false;
@@ -384,9 +412,6 @@ public class CostomeWebView extends ConstraintLayout {
         return mWebView;
     }
 
-    public String getUrl() {
-        return mUrl;
-    }
 
     public WebSettings getSettings() {
         return settings;
@@ -413,7 +438,8 @@ public class CostomeWebView extends ConstraintLayout {
         return false;
     }
 
-    public void requestVerticalScreen() {//请求竖屏
+    //请求竖屏
+    private void requestVerticalScreen() {
         if (mActivity != null) {//竖屏
             if (!isActivityFullScreen) {//activity如果是全屏就不设置全屏和取消全屏
                 setFullScreen(mActivity, false);//取消全屏
@@ -424,7 +450,8 @@ public class CostomeWebView extends ConstraintLayout {
         }
     }
 
-    public void requestHorizontalScreen() {//请求横屏
+    //请求横屏
+    private void requestHorizontalScreen() {
         if (mActivity != null) {//横屏
             if (!isActivityFullScreen) {//activity如果是全屏就不设置全屏和取消全屏
                 setFullScreen(mActivity, true);//全屏
@@ -449,6 +476,14 @@ public class CostomeWebView extends ConstraintLayout {
         }
     }
 
+    public void setOnPageChangeListener(OnPageChangeListener onPageChangeListener) {
+        this.onPageChangeListener = onPageChangeListener;
+    }
+
+    public void setDownloadListener(DownloadListener downloadListener) {
+        this.downloadListener = downloadListener;
+    }
+
     //Android调用js方法
     @RequiresApi(api = Build.VERSION_CODES.KITKAT)
     public void androidToJs(String script, final OnAndroidToJsCallBack androidToJsCallBack) {
@@ -471,6 +506,13 @@ public class CostomeWebView extends ConstraintLayout {
                 }
             });
         }
+    }
+
+    //页面变化
+    public interface OnPageChangeListener {
+        void onGoPage(String url);
+
+        void onBackPage(String url);
     }
 
     public interface OnAndroidToJsCallBack {

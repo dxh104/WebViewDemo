@@ -6,15 +6,6 @@
     android:layout_height="match_parent"
     tools:context=".WebViewActivity">
 
-    <!--    <android.support.v4.widget.NestedScrollView-->
-    <!--        android:layout_width="match_parent"-->
-    <!--        android:layout_height="match_parent"-->
-    <!--        android:fillViewport="true"-->
-    <!--        android:overScrollMode="never">-->
-
-    <!--        <android.support.constraint.ConstraintLayout-->
-    <!--            android:layout_width="match_parent"-->
-    <!--            android:layout_height="match_parent">-->
 
     <com.example.webviewdemo.widget.CostomeWebView
         android:id="@+id/costomeWebView"
@@ -25,7 +16,29 @@
         app:costomeWebView_progressWidth="match_parent"
         app:costomeWebView_webViewHeight="match_parent"
         app:costomeWebView_webViewWidth="match_parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent">
+        <!--添加一个自定义头部-->
+        <!--必须有id 否则可能会影响CostomeWebView的布局-->
+        <android.support.constraint.ConstraintLayout
+            android:id="@+id/topLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#cccc">
+
+            <EditText
+                android:id="@+id/et_url"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:background="@null"
+                android:gravity="center"
+                android:inputType="text"
+                android:maxLines="1"
+                android:textColor="#ff0000"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+        </android.support.constraint.ConstraintLayout>
+    </com.example.webviewdemo.widget.CostomeWebView>
 
     <Button
         android:id="@+id/btn_androidToJs"
@@ -34,6 +47,5 @@
         android:text="Android调用JS"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent" />
-    <!--        </android.support.constraint.ConstraintLayout>-->
-    <!--    </android.support.v4.widget.NestedScrollView>-->
+
 </android.support.constraint.ConstraintLayout>
